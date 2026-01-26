@@ -1,0 +1,21 @@
+# Terraform - ARQUIVOS CRÍTICOS, NÃO REMOVA
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+.terraform.lock.hcl
+
+# AWS Credenciais (Caso você crie um arquivo local de teste)
+*.pem
+.aws/
+creds/
+
+# IDE e Sistema
+.DS_Store
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+.env
