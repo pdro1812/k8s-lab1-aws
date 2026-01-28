@@ -1,13 +1,11 @@
-# vpc
 resource "aws_vpc" "main" {
-  cidr_block = "10.0.0.0/16" # Defina seu bloco de IP
-  
+  cidr_block = "10.0.0.0/16"
+
   tags = {
     Name = "main-vpc"
   }
 }
 
-# 2. INTERNET GATEWAY
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main.id
 
@@ -16,11 +14,11 @@ resource "aws_internet_gateway" "igw" {
   }
 }
 
-# 3. SUBNET PÚBLICA
+# Subnets públicas
 resource "aws_subnet" "public_1a" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.1.0/24"
-  availability_zone = "us-east-1a" 
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "us-east-1a"
   map_public_ip_on_launch = true
 
   tags = {
@@ -30,20 +28,45 @@ resource "aws_subnet" "public_1a" {
   }
 }
 
-# 4. SUBNET PRIVADA
-resource "aws_subnet" "private_1a" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.2.0/24"
-  availability_zone = "us-east-1a"
+resource "aws_subnet" "public_1b" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.2.0/24"
+  availability_zone       = "us-east-1b"
+  map_public_ip_on_launch = true
 
   tags = {
-    Name = "private-1a"
-    "kubernetes.io/role/internal-elb" = "1" 
+    Name = "public-1b"
+    "kubernetes.io/role/elb" = "1"
     "kubernetes.io/cluster/meu-cluster" = "shared"
   }
 }
 
-# 5. NAT GATEWAY 
+# Subnets privadas
+resource "aws_subnet" "private_1a" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.101.0/24"
+  availability_zone = "us-east-1a"
+
+  tags = {
+    Name = "private-1a"
+    "kubernetes.io/role/internal-elb" = "1"
+    "kubernetes.io/cluster/meu-cluster" = "shared"
+  }
+}
+
+resource "aws_subnet" "private_1b" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.102.0/24"
+  availability_zone = "us-east-1b"
+
+  tags = {
+    Name = "private-1b"
+    "kubernetes.io/role/internal-elb" = "1"
+    "kubernetes.io/cluster/meu-cluster" = "shared"
+  }
+}
+
+# NAT Gateway (single AZ)
 resource "aws_eip" "nat" {
   domain = "vpc"
 }
@@ -52,46 +75,57 @@ resource "aws_nat_gateway" "nat" {
   allocation_id = aws_eip.nat.id
   subnet_id     = aws_subnet.public_1a.id
 
+  depends_on = [aws_internet_gateway.igw]
+
   tags = {
     Name = "main-nat"
   }
-  
-  depends_on = [aws_internet_gateway.igw]
 }
 
-#rota publica
+# Route table pública
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
   route {
-    cidr_block = "0.0.0.0/0"               
+    cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.igw.id
   }
 
   tags = {
-    Name = "public-route-table"
+    Name = "public-rt"
   }
 }
+
 resource "aws_route_table_association" "public_1a" {
   subnet_id      = aws_subnet.public_1a.id
   route_table_id = aws_route_table.public.id
 }
 
-#rota privada
+resource "aws_route_table_association" "public_1b" {
+  subnet_id      = aws_subnet.public_1b.id
+  route_table_id = aws_route_table.public.id
+}
+
+# Route table privada
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
 
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.nat.id 
+    nat_gateway_id = aws_nat_gateway.nat.id
   }
 
   tags = {
-    Name = "private-route-table"
+    Name = "private-rt"
   }
 }
 
 resource "aws_route_table_association" "private_1a" {
   subnet_id      = aws_subnet.private_1a.id
+  route_table_id = aws_route_table.private.id
+}
+
+resource "aws_route_table_association" "private_1b" {
+  subnet_id      = aws_subnet.private_1b.id
   route_table_id = aws_route_table.private.id
 }
