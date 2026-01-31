@@ -129,3 +129,55 @@ resource "aws_route_table_association" "private_1b" {
   subnet_id      = aws_subnet.private_1b.id
   route_table_id = aws_route_table.private.id
 }
+
+# VPC Endpoints (Conectividade Privada)
+resource "aws_vpc_endpoint" "dynamodb" {
+  vpc_id       = aws_vpc.main.id
+  service_name = "com.amazonaws.us-east-1.dynamodb"
+  vpc_endpoint_type = "Gateway"
+
+  route_table_ids = [aws_route_table.private.id]
+
+  tags = {
+    Name = "dynamodb-endpoint"
+  }
+}
+
+resource "aws_security_group" "vpc_endpoint_sg" {
+  name        = "vpc-endpoint-sg"
+  description = "Allow HTTPS from VPC"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block] 
+  }
+
+  tags = {
+    Name = "vpc-endpoint-sg"
+  }
+}
+
+# 3. Interface Endpoint para CloudWatch (Monitoring)
+resource "aws_vpc_endpoint" "cloudwatch" {
+  vpc_id            = aws_vpc.main.id
+  service_name      = "com.amazonaws.us-east-1.monitoring"
+  vpc_endpoint_type = "Interface"
+
+  subnet_ids = [
+    aws_subnet.private_1a.id,
+    aws_subnet.private_1b.id
+  ]
+
+  security_group_ids = [
+    aws_security_group.vpc_endpoint_sg.id
+  ]
+
+  private_dns_enabled = true
+
+  tags = {
+    Name = "cloudwatch-endpoint"
+  }
+}
